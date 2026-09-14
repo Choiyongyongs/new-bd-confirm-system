@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: dental-design-confirm-system
+    runtime: node
+    plan: free
+    region: singapore # 한국에서 접속 시 지연 시간이 가장 짧은 싱가포르 또는 오리건 권장
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

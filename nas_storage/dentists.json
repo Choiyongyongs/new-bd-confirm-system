@@ -1,0 +1,56 @@
+[
+  {
+    "id": "dentist_core_1",
+    "name": "김민수원장님",
+    "isCore": true,
+    "displayOrder": 1
+  },
+  {
+    "id": "dentist_core_2",
+    "name": "현정민원장님",
+    "isCore": true,
+    "displayOrder": 2
+  },
+  {
+    "id": "dentist_core_3",
+    "name": "문석준원장님",
+    "isCore": true,
+    "displayOrder": 3
+  },
+  {
+    "id": "dentist_rem_1",
+    "name": "최종훈원장님",
+    "isCore": false,
+    "displayOrder": 4
+  },
+  {
+    "id": "dentist_rem_2",
+    "name": "박수빈원장님",
+    "isCore": false,
+    "displayOrder": 5
+  },
+  {
+    "id": "dentist_rem_3",
+    "name": "박상현원장님",
+    "isCore": false,
+    "displayOrder": 6
+  },
+  {
+    "id": "dentist_rem_4",
+    "name": "김민규원장님",
+    "isCore": false,
+    "displayOrder": 7
+  },
+  {
+    "id": "dentist_rem_5",
+    "name": "임지원원장님",
+    "isCore": false,
+    "displayOrder": 8
+  },
+  {
+    "id": "dentist_rem_6",
+    "name": "이승엽원장님",
+    "isCore": false,
+    "displayOrder": 9
+  }
+]

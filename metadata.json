@@ -1,0 +1,6 @@
+{
+  "name": "new BD confirm system",
+  "description": "치과 기공실과 치과의사 간의 3D 보철물 디자인 컨펌 및 피드백 소통을 위한 웹 애플리케이션",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
