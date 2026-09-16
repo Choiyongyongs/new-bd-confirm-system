@@ -125,6 +125,25 @@ export function mapDentalCaseToSupabase(dentalCase: DentalCase) {
 // ==============================================================================
 // Storage APIs (Supabase Storage: bucket 'dental-files')
 // ==============================================================================
+function getSafeStoragePath(folderName: string, file: File): string {
+  // Extract clean safe extension
+  const rawExt = file.name.split('.').pop()?.toLowerCase() || '';
+  const safeExt = rawExt.replace(/[^a-z0-9]/g, '');
+  const ext = safeExt ? `.${safeExt}` : (file.type.includes('image') ? '.png' : '.stl');
+
+  // Sanitize folder/chart string to safe ASCII
+  const safePrefix = folderName
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'case';
+
+  // Date partition (YYYYMMDD) to organize files cleanly
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+  return `cases/${dateStr}/${safePrefix}_${uniqueId}${ext}`;
+}
+
 export async function uploadFileToStorage(
   file: File,
   folderName: string = 'general',
@@ -137,11 +156,7 @@ export async function uploadFileToStorage(
     return URL.createObjectURL(file);
   }
 
-  const cleanOriginalName = file.name.replace(/[/\\?%*:|"<>]/g, '_');
-  const safeFolder = sanitizeName(folderName);
-  const ext = file.name.substring(file.name.lastIndexOf('.')) || (file.type.includes('image') ? '.png' : '.stl');
-  const uniqueKey = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
-  const storagePath = `cases/${safeFolder}/${uniqueKey}`;
+  const storagePath = getSafeStoragePath(folderName, file);
 
   if (onProgress) onProgress(20);
 
