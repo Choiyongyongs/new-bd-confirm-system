@@ -22,8 +22,7 @@ import {
   Link as LinkIcon,
   Unlock,
   Check,
-  ShieldAlert,
-  Settings
+  ShieldAlert
 } from 'lucide-react';
 import {
   fetchAccessPassword,
@@ -36,7 +35,6 @@ import {
 } from './services/api';
 import {
   getSupabaseConfig,
-  saveSupabaseConfig,
   isSupabaseConfigured
 } from './services/supabase';
 
@@ -55,11 +53,7 @@ export default function App() {
     supabaseUrl: null
   });
 
-  // Supabase Configuration Modal State
-  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [configUrlInput, setConfigUrlInput] = useState('');
-  const [configKeyInput, setConfigKeyInput] = useState('');
-  const [configSavedMsg, setConfigSavedMsg] = useState('');
+
 
   // Helper to extract target case ID from either URL hash or search params
   const extractCaseIdFromUrl = (): string | null => {
@@ -150,26 +144,11 @@ export default function App() {
       isSupabaseActive: active,
       supabaseUrl: active ? cfg.url : null
     });
-    setConfigUrlInput(cfg.url);
-    setConfigKeyInput(cfg.anonKey);
   };
 
   useEffect(() => {
     refreshSupabaseStatus();
   }, []);
-
-  // Save user configured Supabase credentials from modal
-  const handleSaveSupabaseConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    saveSupabaseConfig(configUrlInput, configKeyInput);
-    refreshSupabaseStatus();
-    setConfigSavedMsg('Supabase 설정이 저장되었습니다. 데이터를 새로고침합니다.');
-    fetchCases(true);
-    setTimeout(() => {
-      setConfigSavedMsg('');
-      setIsConfigModalOpen(false);
-    }, 1500);
-  };
 
   // Fetch all cases from Supabase DB
   const fetchCases = async (showRefreshIndicator = false) => {
@@ -424,24 +403,18 @@ export default function App() {
               </span>
             )}
 
-            {/* Storage Mode Indicator / Supabase Config Button */}
-            <button
-              type="button"
-              onClick={() => {
-                refreshSupabaseStatus();
-                setIsConfigModalOpen(true);
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border shadow-3xs cursor-pointer transition-all active:scale-95 ${
+            {/* Storage Mode Indicator */}
+            <div
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border shadow-3xs ${
                 supabaseStatus.isSupabaseActive
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
               }`}
-              title="클릭하여 Supabase 클라우드 DB 및 스토리지 연동 설정을 확인하거나 변경합니다"
+              title={supabaseStatus.isSupabaseActive ? 'Supabase 클라우드 DB 및 스토리지 연동 완료' : 'Supabase 연결 중...'}
             >
               <Database className="w-3.5 h-3.5" />
-              <span>{supabaseStatus.isSupabaseActive ? 'Supabase 연동 완료' : 'Supabase 설정 필요'}</span>
-              <Settings className="w-3 h-3 ml-0.5 opacity-60" />
-            </button>
+              <span>{supabaseStatus.isSupabaseActive ? 'Supabase 연동 완료' : 'Supabase 연결 중...'}</span>
+            </div>
 
             {/* Auto Delete Policy Indicator */}
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 text-[10px] font-bold text-amber-700 border border-amber-200/50 shadow-3xs">
@@ -746,90 +719,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Supabase Connection Setup Modal */}
-      {isConfigModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <Database className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Supabase 클라우드 연동 설정</h3>
-                  <p className="text-[10px] text-slate-400">GitHub Pages 직접 통신 접속 정보</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsConfigModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <div className="p-3 bg-blue-50 border border-blue-200/70 rounded-2xl">
-              <p className="font-bold text-blue-900 text-xs mb-1">
-                💡 백엔드 서버 없는 정적 호스팅 (BaaS)
-              </p>
-              <p className="text-[11px] text-blue-800 leading-relaxed">
-                GitHub Pages에서는 브라우저가 직접 Supabase DB와 스토리지로 통신합니다. Supabase 대시보드의 Project Settings &gt; API에서 확인한 정보를 입력하시면 모든 기기에서 즉시 연결됩니다.
-              </p>
-            </div>
-
-            <form onSubmit={handleSaveSupabaseConfig} className="space-y-3.5">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Project URL (https://xxxx.supabase.co)
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://your-project.supabase.co"
-                  value={configUrlInput}
-                  onChange={(e) => setConfigUrlInput(e.target.value)}
-                  className="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Anon Public Key
-                </label>
-                <input
-                  type="text"
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                  value={configKeyInput}
-                  onChange={(e) => setConfigKeyInput(e.target.value)}
-                  className="w-full text-xs p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono text-[11px]"
-                  required
-                />
-              </div>
-
-              {configSavedMsg && (
-                <p className="text-xs text-emerald-600 font-bold text-center animate-pulse">{configSavedMsg}</p>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
-                >
-                  연동 정보 저장 및 연결
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsConfigModalOpen(false)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer"
-                >
-                  취소
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
 
       {/* Footer bar */}
