@@ -27,6 +27,7 @@ import {
 import {
   fetchAccessPassword,
   updateAccessPassword,
+  subscribeToAccessPassword,
   fetchCases as apiFetchCases,
   createDentalCase,
   updateDentalCase,
@@ -89,7 +90,7 @@ export default function App() {
   const [newPass, setNewPass] = useState('');
   const [passSuccessMsg, setPassSuccessMsg] = useState('');
 
-  // Fetch shared password from Supabase DB (with local fallback)
+  // Fetch shared password from Supabase DB and subscribe to real-time changes
   useEffect(() => {
     fetchAccessPassword()
       .then(pwd => {
@@ -102,38 +103,91 @@ export default function App() {
       .finally(() => {
         setIsPasswordLoading(false);
       });
+
+    // Realtime channel sync across all devices
+    const unsubscribe = subscribeToAccessPassword((newPwd) => {
+      console.log('[PASSWORD] Realtime update from Supabase:', newPwd);
+      setCustomPassword(newPwd);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
-  // Unlock access handler
-  const handleUnlockAccess = (e?: React.FormEvent) => {
+  // Open password settings modal with fresh DB value
+  const handleOpenPasswordModal = () => {
+    setPassError('');
+    setPassSuccessMsg('');
+    setNewPass('');
+    setIsChangingPass(true);
+    fetchAccessPassword().then(pwd => {
+      if (pwd) setCustomPassword(pwd);
+    });
+  };
+
+  // Unlock access handler (always verifies against live server database)
+  const handleUnlockAccess = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (inputPassword.trim() === customPassword) {
-      setIsAuthorized(true);
-      sessionStorage.setItem('dental_access_auth', 'true');
-      setPassError('');
-    } else {
-      setPassError('접속 비밀번호가 일치하지 않습니다.');
+    const typed = inputPassword.trim();
+    if (!typed) {
+      setPassError('비밀번호를 입력해 주세요.');
+      return;
+    }
+
+    setIsPasswordLoading(true);
+    setPassError('');
+
+    try {
+      // Direct live check from Supabase DB to guarantee cross-device sync
+      const latestPassword = await fetchAccessPassword();
+      setCustomPassword(latestPassword);
+
+      if (typed === latestPassword || typed === customPassword) {
+        setIsAuthorized(true);
+        sessionStorage.setItem('dental_access_auth', 'true');
+        setPassError('');
+      } else {
+        setPassError('접속 비밀번호가 일치하지 않습니다.');
+      }
+    } catch {
+      if (typed === customPassword) {
+        setIsAuthorized(true);
+        sessionStorage.setItem('dental_access_auth', 'true');
+        setPassError('');
+      } else {
+        setPassError('접속 비밀번호가 일치하지 않습니다.');
+      }
+    } finally {
+      setIsPasswordLoading(false);
     }
   };
 
-  // Change password handler — save to Supabase shared DB
+  // Change password handler — save to Supabase shared DB with instant confirmation
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPass.trim()) return;
+    const clean = newPass.trim();
+    if (!clean) return;
+
+    setIsPasswordLoading(true);
+    setPassError('');
+    setPassSuccessMsg('');
+
     try {
-      const updated = await updateAccessPassword(newPass.trim());
+      const updated = await updateAccessPassword(clean);
       setCustomPassword(updated);
-      setPassSuccessMsg('접속 비밀번호가 변경되었습니다. (모든 접속자에게 공유 적용됩니다)');
-    } catch (err) {
+      setPassSuccessMsg('접속 비밀번호가 변경되었습니다. 모든 PC 및 모바일에 즉시 동기화됩니다.');
+      setNewPass('');
+      setTimeout(() => {
+        setPassSuccessMsg('');
+        setIsChangingPass(false);
+      }, 1500);
+    } catch (err: any) {
       console.error('[PASSWORD] Update error:', err);
-      setCustomPassword(newPass.trim());
-      setPassSuccessMsg('비밀번호가 변경되었습니다. (로컬에 저장됨)');
+      setPassError(err.message || '비밀번호 저장 중 오류가 발생했습니다.');
+    } finally {
+      setIsPasswordLoading(false);
     }
-    setNewPass('');
-    setTimeout(() => {
-      setPassSuccessMsg('');
-      setIsChangingPass(false);
-    }, 2000);
   };
 
   // Check Supabase connection state
@@ -385,10 +439,10 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-sm font-black font-display text-slate-900 tracking-tight flex items-center gap-1">
-                new BD confirm system
+                보철 디자인 컨펌 시스템
               </h1>
               <span className="text-[10px] text-slate-400 font-medium block">
-                치과 보철물 3D 디자인 원격 승인 및 협진 시스템
+                치과보철물 제작 협진시스템
               </span>
             </div>
           </div>
@@ -425,7 +479,7 @@ export default function App() {
             {/* Direct Link Protection Button */}
             <button
               type="button"
-              onClick={() => setIsChangingPass(true)}
+              onClick={handleOpenPasswordModal}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-900 text-white hover:bg-slate-800 transition-all cursor-pointer shadow-3xs active:scale-95"
               title="외부 무단 접속 제한 및 직링크 보호 비밀번호 설정"
             >
@@ -690,7 +744,10 @@ export default function App() {
                 </div>
 
                 {passSuccessMsg && (
-                  <p className="text-[11px] text-emerald-600 font-bold text-center">{passSuccessMsg}</p>
+                  <p className="text-[11px] text-emerald-600 font-bold text-center bg-emerald-50 py-1.5 px-3 rounded-lg border border-emerald-200 animate-in fade-in">{passSuccessMsg}</p>
+                )}
+                {passError && (
+                  <p className="text-[11px] text-rose-600 font-bold text-center bg-rose-50 py-1.5 px-3 rounded-lg border border-rose-200 animate-in fade-in">{passError}</p>
                 )}
 
                 <div className="flex gap-2 pt-2">

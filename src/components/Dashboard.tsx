@@ -826,11 +826,12 @@ export default function Dashboard({ cases, onSelectCase, onAddCaseClick, onDelet
 
                 {/* Footer clinicians information & action */}
                 <div className="border-t border-slate-100 pt-2.5 mt-auto flex items-center justify-between">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] text-slate-500 font-rounded">
+                  <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 font-rounded">
+                    <span>
                       의료진: <strong className="text-blue-700 font-bold font-rounded-bold">{c.dentistName}</strong>
                     </span>
-                    <span className="text-[11px] text-slate-500 font-rounded">
+                    <span className="text-slate-300">|</span>
+                    <span>
                       기공사: <strong className="text-slate-800 font-bold font-rounded-bold">{c.technicianName}</strong>
                     </span>
                   </div>

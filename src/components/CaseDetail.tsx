@@ -415,44 +415,46 @@ export default function CaseDetail({ caseId, onBack, onConfirm, onDelete, onEdit
             {dentalCase.patientName} 환자 보철 디자인
           </h2>
 
-          {/* 요청 구분 뱃지 */}
-          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold border ${
-            dentalCase.requestType?.includes('기공사')
-              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-              : 'bg-sky-50 text-sky-800 border-sky-200'
-          }`}>
-            <span>{dentalCase.requestType?.includes('기공사') ? '🥼' : '🧑‍⚕️'}</span>
-            <span>{dentalCase.requestType?.includes('기공사') ? '담당기공사님 확인부탁드려요.' : (dentalCase.requestType || '원장님 확인부탁드려요.')}</span>
-          </span>
+          {/* 요청 구분 및 확인 상태 뱃지 그룹 */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold border ${
+              dentalCase.requestType?.includes('기공사')
+                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                : 'bg-sky-50 text-sky-800 border-sky-200'
+            }`}>
+              <span>{dentalCase.requestType?.includes('기공사') ? '🥼' : '🧑‍⚕️'}</span>
+              <span>{dentalCase.requestType?.includes('기공사') ? '담당기공사님 확인부탁드려요.' : (dentalCase.requestType || '원장님 확인부탁드려요.')}</span>
+            </span>
 
-          {/* 확인 상태 뱃지 */}
-          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black font-rounded-bold border ${
-            dentalCase.status === '확인 완료'
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-              : dentalCase.status === '수정 완료'
-              ? 'bg-purple-50 text-purple-700 border-purple-200'
-              : 'bg-red-50 text-red-600 border-red-200 animate-pulse'
-          }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${
-              dentalCase.status === '확인 완료' ? 'bg-emerald-500' : (dentalCase.status === '수정 완료' ? 'bg-purple-500' : 'bg-red-500')
-            }`}></span>
-            {dentalCase.status}
-          </span>
-
-          {/* 원장 정보 */}
-          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100/90 text-slate-800 border border-slate-200/70 text-xs">
-            <span className="text-slate-400 font-normal">원장</span>
-            <span className="text-blue-700 font-bold font-rounded-bold">
-              {dentalCase.dentistName}
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black font-rounded-bold border ${
+              dentalCase.status === '확인 완료'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                : dentalCase.status === '수정 완료'
+                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                : 'bg-red-50 text-red-600 border-red-200 animate-pulse'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                dentalCase.status === '확인 완료' ? 'bg-emerald-500' : (dentalCase.status === '수정 완료' ? 'bg-purple-500' : 'bg-red-500')
+              }`}></span>
+              {dentalCase.status}
             </span>
           </div>
 
-          {/* 기공사 정보 */}
-          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100/90 text-slate-800 border border-slate-200/70 text-xs">
-            <span className="text-slate-400 font-normal">기공사</span>
-            <span className="text-slate-900 font-bold font-rounded-bold">
-              {dentalCase.technicianName}
-            </span>
+          {/* 원장 & 기공사 정보 그룹 (모바일에서도 항상 나란히 배치) */}
+          <div className="flex items-center gap-1.5">
+            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100/90 text-slate-800 border border-slate-200/70 text-xs">
+              <span className="text-slate-400 font-normal">원장</span>
+              <span className="text-blue-700 font-bold font-rounded-bold">
+                {dentalCase.dentistName}
+              </span>
+            </div>
+
+            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100/90 text-slate-800 border border-slate-200/70 text-xs">
+              <span className="text-slate-400 font-normal">기공사</span>
+              <span className="text-slate-900 font-bold font-rounded-bold">
+                {dentalCase.technicianName}
+              </span>
+            </div>
           </div>
 
           {/* 등록일시 및 완료일시 */}
@@ -484,21 +486,18 @@ export default function CaseDetail({ caseId, onBack, onConfirm, onDelete, onEdit
             ) : (
               <>
                 <Share2 className="w-4 h-4" />
-                <span>공유 링크 복사</span>
+                <span>링크 복사</span>
               </>
             )}
           </button>
 
           <button
             onClick={() => onEdit(dentalCase)}
-            className="flex-1 md:flex-none text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl shadow-md shadow-amber-500/10 cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5"
-            title="치과기공사 전용 게시글 수정 버튼입니다."
+            className="flex-1 md:flex-none text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl shadow-md shadow-amber-500/10 cursor-pointer transition-all active:scale-95 flex items-center justify-center gap-1.5"
+            title="게시글 수정"
           >
             <Edit className="w-4 h-4 shrink-0" />
-            <div className="flex flex-col items-start leading-tight text-left">
-              <span className="text-xs font-bold">수정하기</span>
-              <span className="text-[9px] font-medium opacity-90">(치과기공사)</span>
-            </div>
+            <span>수정하기</span>
           </button>
           
           {/* 삭제 버튼 */}

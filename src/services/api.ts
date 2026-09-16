@@ -709,13 +709,17 @@ export async function fetchAccessPassword(): Promise<string> {
       .from('settings')
       .select('value')
       .eq('key', 'access_password')
-      .single();
+      .maybeSingle();
 
     if (!error && data?.value) {
       localStorage.setItem(LS_PASSWORD_KEY, data.value);
       return data.value;
+    } else if (error) {
+      console.warn('[SETTINGS] Supabase fetch password error:', error);
     }
-  } catch (_) {}
+  } catch (e) {
+    console.warn('[SETTINGS] fetchAccessPassword exception:', e);
+  }
 
   return localStorage.getItem(LS_PASSWORD_KEY) || '1234';
 }
@@ -724,16 +728,44 @@ export async function updateAccessPassword(newPassword: string): Promise<string>
   const cleanPass = newPassword.trim();
   const supabase = getSupabaseClient();
   if (supabase) {
-    try {
-      await supabase.from('settings').upsert({
+    const { error } = await supabase.from('settings').upsert(
+      {
         key: 'access_password',
         value: cleanPass
-      });
-    } catch (e) {
-      console.warn('[SETTINGS] Supabase password update warning:', e);
+      },
+      { onConflict: 'key' }
+    );
+
+    if (error) {
+      console.error('[SETTINGS] Supabase password update failed:', error);
+      throw new Error(`비밀번호 데이터베이스 저장 실패: ${error.message}`);
     }
+    console.log('[SETTINGS] Password successfully synchronized to Supabase DB');
   }
 
   localStorage.setItem(LS_PASSWORD_KEY, cleanPass);
   return cleanPass;
+}
+
+export function subscribeToAccessPassword(onUpdate: (pwd: string) => void): () => void {
+  const supabase = getSupabaseClient();
+  if (!supabase) return () => {};
+
+  const channel = supabase
+    .channel('settings_password_sync')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'settings', filter: 'key=eq.access_password' },
+      (payload: any) => {
+        if (payload?.new?.value) {
+          localStorage.setItem(LS_PASSWORD_KEY, payload.new.value);
+          onUpdate(payload.new.value);
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }
