@@ -1204,6 +1204,15 @@ export default function ThreeViewer({
       cam.position.set(center.x, center.y + maxDim * 0.35, center.z + cameraDistance);
       cam.lookAt(center);
 
+      // TrackballControls 내부 드래그 상태 및 잔여 회전 관성 속도 리셋 (회전 끊김 방지)
+      try {
+        const rawCtrl = ctrl as any;
+        if (rawCtrl._state !== undefined) rawCtrl._state = -1; // STATE.NONE
+        if (rawCtrl._moveCurr && rawCtrl._movePrev) {
+          rawCtrl._moveCurr.copy(rawCtrl._movePrev);
+        }
+      } catch (_) {}
+
       // Set minDistance to prevent extreme slowdown at close zoom
       ctrl.minDistance = Math.max(0.05, maxDim * 0.02);
 
@@ -1716,6 +1725,23 @@ export default function ThreeViewer({
   }, [loadedModels]);
 
   const isLoadingModels = loadedModels.some(m => loadingProgress[m.id] !== undefined);
+
+  // 로딩 중 사용자 마우스 조작으로 인한 TrackballControls 가속도 꼬임 및 회전 끊김 방지
+  useEffect(() => {
+    const ctrl = controlsRef.current;
+    if (ctrl) {
+      ctrl.enabled = !isLoadingModels;
+      if (isLoadingModels) {
+        try {
+          const raw = ctrl as any;
+          if (raw._state !== undefined) raw._state = -1;
+          if (raw._moveCurr && raw._movePrev) {
+            raw._moveCurr.copy(raw._movePrev);
+          }
+        } catch (_) {}
+      }
+    }
+  }, [isLoadingModels]);
 
   // Drag and drop STL files onto ThreeViewer container
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -2524,8 +2550,14 @@ export default function ThreeViewer({
 
       {/* 3D Model Loading Spinner & Progress Overlay */}
       {isLoadingModels && (
-        <div className="absolute inset-0 z-30 bg-slate-900/40 backdrop-blur-xs flex flex-col items-center justify-center gap-3 text-white pointer-events-none">
-          <div className="bg-slate-900/90 border border-slate-700 p-5 rounded-2xl shadow-2xl flex flex-col items-center gap-3 max-w-xs w-full">
+        <div 
+          className="absolute inset-0 z-30 bg-slate-900/40 backdrop-blur-xs flex flex-col items-center justify-center gap-3 text-white pointer-events-auto cursor-wait select-none"
+          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+        >
+          <div className="bg-slate-900/90 border border-slate-700 p-5 rounded-2xl shadow-2xl flex flex-col items-center gap-3 max-w-xs w-full pointer-events-auto">
             <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
             <div className="text-center">
               <p className="text-sm font-bold text-slate-100">3D 모델 로딩 중...</p>
