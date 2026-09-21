@@ -207,7 +207,7 @@ function sanitizeGeometryColors(geometry: THREE.BufferGeometry): boolean {
   }
 }
 
-// Fallback vertex color extractor for dental OBJ files with 'v x y z r g b' syntax
+// Fallback vertex color extractor for dental OBJ files with 'v x y z r g b' syntax (e.g. exocad)
 function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry): void {
   try {
     if (geometry.attributes.color && geometry.attributes.color.count > 0) {
@@ -216,10 +216,10 @@ function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry)
     }
 
     const lines = objText.split('\n');
-    const vertexColors: number[][] = [];
+    const rawVertexColors: [number, number, number][] = [];
     let hasVertexColors = false;
 
-    // 1. First pass: extract all vertex colors from 'v x y z r g b [a]'
+    // 1. 'v x y z r g b' 라인 파싱 (0~255 정수 또는 0.0~1.0 부동소수점)
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (line.startsWith('v ')) {
@@ -230,30 +230,30 @@ function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry)
           let b = parseFloat(parts[6]);
 
           if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-            if (r > 1.05 || g > 1.05 || b > 1.05) {
+            // 0~255 범위인 경우 255로 나누어 0.0~1.0으로 정규화
+            if (r > 1.0 || g > 1.0 || b > 1.0) {
               r /= 255.0;
               g /= 255.0;
               b /= 255.0;
             }
-            // 원본 색상값 그대로 유지 (색공간 변환 없음)
-            vertexColors.push([
+            rawVertexColors.push([
               Math.min(Math.max(r, 0.0), 1.0),
               Math.min(Math.max(g, 0.0), 1.0),
               Math.min(Math.max(b, 0.0), 1.0)
             ]);
             hasVertexColors = true;
           } else {
-            vertexColors.push([1.0, 1.0, 1.0]);
+            rawVertexColors.push([1.0, 1.0, 1.0]);
           }
         } else {
-          vertexColors.push([1.0, 1.0, 1.0]);
+          rawVertexColors.push([1.0, 1.0, 1.0]);
         }
       }
     }
 
-    if (!hasVertexColors || vertexColors.length === 0) return;
+    if (!hasVertexColors || rawVertexColors.length === 0) return;
 
-    // 2. Map colors through face indices if faces are triangulated
+    // 2. Three.js OBJLoader는 non-indexed 버퍼(face당 3정점 전개)로 생성하므로 face 인덱스로 정점 색상 매핑
     const faceColors: number[] = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -263,7 +263,7 @@ function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry)
         for (const p of parts) {
           const vIdx = parseInt(p.split('/')[0], 10);
           if (!isNaN(vIdx)) {
-            const actualIdx = vIdx > 0 ? vIdx - 1 : vertexColors.length + vIdx;
+            const actualIdx = vIdx > 0 ? vIdx - 1 : rawVertexColors.length + vIdx;
             faceIndices.push(actualIdx);
           }
         }
@@ -272,30 +272,49 @@ function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry)
           const i1 = faceIndices[j];
           const i2 = faceIndices[j + 1];
 
-          const c0 = vertexColors[i0] || [1.0, 1.0, 1.0];
-          const c1 = vertexColors[i1] || [1.0, 1.0, 1.0];
-          const c2 = vertexColors[i2] || [1.0, 1.0, 1.0];
+          const c0 = rawVertexColors[i0] || [1.0, 1.0, 1.0];
+          const c1 = rawVertexColors[i1] || [1.0, 1.0, 1.0];
+          const c2 = rawVertexColors[i2] || [1.0, 1.0, 1.0];
 
           faceColors.push(...c0, ...c1, ...c2);
         }
       }
     }
 
-    if (faceColors.length > 0 && geometry.attributes.position) {
-      if (faceColors.length / 3 === geometry.attributes.position.count) {
-        geometry.setAttribute('color', new THREE.Float32BufferAttribute(faceColors, 3));
-        return;
-      }
+    const posCount = geometry.attributes.position ? geometry.attributes.position.count : 0;
+    if (posCount === 0) return;
+
+    if (faceColors.length > 0 && faceColors.length / 3 === posCount) {
+      const colorArray = new Float32Array(faceColors);
+      geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+      geometry.attributes.color.needsUpdate = true;
+      return;
     }
 
-    // Direct mapping if vertex count matches
-    if (geometry.attributes.position && vertexColors.length === geometry.attributes.position.count) {
-      const flat: number[] = [];
-      for (const vc of vertexColors) flat.push(...vc);
-      geometry.setAttribute('color', new THREE.Float32BufferAttribute(flat, 3));
+    // geometry가 indexed이거나 정점 수와 1:1 매칭되는 경우
+    if (rawVertexColors.length === posCount) {
+      const colorArray = new Float32Array(posCount * 3);
+      for (let i = 0; i < posCount; i++) {
+        colorArray[i * 3] = rawVertexColors[i][0];
+        colorArray[i * 3 + 1] = rawVertexColors[i][1];
+        colorArray[i * 3 + 2] = rawVertexColors[i][2];
+      }
+      geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+      geometry.attributes.color.needsUpdate = true;
+      return;
+    }
+
+    // 부분 메쉬 또는 인덱스 불일치 대비 안전장치 버퍼 주입
+    if (faceColors.length > 0) {
+      const colorArray = new Float32Array(posCount * 3);
+      for (let i = 0; i < posCount * 3; i++) {
+        colorArray[i] = i < faceColors.length ? faceColors[i] : 1.0;
+      }
+      geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+      geometry.attributes.color.needsUpdate = true;
     }
   } catch (err) {
-    console.warn('[ThreeViewer] OBJ color extraction fallback error:', err);
+    console.warn('[ThreeViewer] Fallback OBJ vertex color extraction error:', err);
   }
 }
 
@@ -1267,7 +1286,7 @@ export default function ThreeViewer({
           materialColor = new THREE.Color(model.color && model.color !== '#ffffff' ? model.color : DEFAULT_STL_COLOR);
         } else {
           useVertexColors = hasVertexColors;
-          materialColor = hasVertexColors ? new THREE.Color(0xffffff) : new THREE.Color(model.color || DEFAULT_STL_COLOR);
+          materialColor = hasVertexColors ? new THREE.Color(0xffffff) : new THREE.Color(model.color && model.color !== '#ffffff' ? model.color : (ext === 'obj' ? 0xd3d3d3 : DEFAULT_STL_COLOR));
         }
       } else {
         // STL Models: Always use the exact user-selected color with solid shading (never vertex colors)
@@ -1279,13 +1298,14 @@ export default function ThreeViewer({
         }
       }
 
-      // ExoCAD Satin Matte Shading: Roughness 0.80 completely diffuses light, carving deep fissure shadows
+      // ExoCAD OBJ / STL Shading: OBJ uses roughness 0.35 & metalness 0.05 for vibrant dental gloss
       const isStl = !isPlyOrObj;
+      const isObj = ext === 'obj';
       const material = new THREE.MeshStandardMaterial({
         color: materialColor,
         vertexColors: useVertexColors,
-        metalness: 0.0,
-        roughness: isStl ? 0.80 : (isMono ? 0.80 : 0.88),
+        metalness: isObj ? 0.05 : 0.0,
+        roughness: isObj ? 0.35 : (isStl ? 0.80 : (isMono ? 0.80 : 0.88)),
         side: THREE.DoubleSide,
         transparent: targetOpacity < 0.99,
         opacity: targetOpacity,
@@ -1319,6 +1339,7 @@ export default function ThreeViewer({
         if (existingMesh.material && existingMesh.geometry) {
           const ext = getModelExtension(model.url, model.name, model.format, model.originalName);
           const isPlyOrObj = ext === 'ply' || ext === 'obj';
+          const isObj = ext === 'obj';
           if (!isPlyOrObj && existingMesh.geometry.attributes.color) {
             existingMesh.geometry.deleteAttribute('color');
           }
@@ -1341,7 +1362,7 @@ export default function ThreeViewer({
               if (hasVertexColors) {
                 mat.color.setHex(0xffffff);
               } else {
-                mat.color.set(model.color || DEFAULT_STL_COLOR);
+                mat.color.set(model.color && model.color !== '#ffffff' ? model.color : (isObj ? 0xd3d3d3 : DEFAULT_STL_COLOR));
               }
             }
           } else {
@@ -1353,8 +1374,8 @@ export default function ThreeViewer({
             }
           }
           const isStl = !isPlyOrObj;
-          mat.roughness = isStl ? 0.80 : (isMono ? 0.80 : 0.88);
-          mat.metalness = 0.0;
+          mat.roughness = isObj ? 0.35 : (isStl ? 0.80 : (isMono ? 0.80 : 0.88));
+          mat.metalness = isObj ? 0.05 : 0.0;
           mat.transparent = targetOpacity < 0.99;
           mat.opacity = targetOpacity;
           mat.depthWrite = true;
@@ -1449,22 +1470,53 @@ export default function ThreeViewer({
 
               const geometries: THREE.BufferGeometry[] = [];
               objGroup.traverse((child) => {
-                if ((child as THREE.Mesh).isMesh) {
-                  const m = child as THREE.Mesh;
-                  if (m.geometry) {
-                    sanitizeGeometryColors(m.geometry);
-                    geometries.push(m.geometry.clone());
+                if (child instanceof THREE.Mesh) {
+                  const mesh = child;
+                  if (mesh.geometry) {
+                    // 1. 기본 OBJLoader의 정점 색상 누락 대비 안전장치 (Fallback)
+                    if (!mesh.geometry.attributes.color || mesh.geometry.attributes.color.count === 0) {
+                      extractOBJVertexColors(text, mesh.geometry);
+                    }
+
+                    // 2. 색상 버퍼가 존재한다면 1.0 초과(0~255 정수) 검사 및 255로 나누어 0.0~1.0 정규화
+                    if (mesh.geometry.attributes.color) {
+                      const colors = mesh.geometry.attributes.color;
+                      const array = colors.array;
+                      let hasOverOne = false;
+                      const checkLen = Math.min(array.length, 3000);
+                      for (let i = 0; i < checkLen; i++) {
+                        if (array[i] > 1.0) {
+                          hasOverOne = true;
+                          break;
+                        }
+                      }
+                      if (hasOverOne) {
+                        for (let i = 0; i < array.length; i++) {
+                          array[i] = Math.min(Math.max(array[i] / 255.0, 0.0), 1.0);
+                        }
+                        colors.needsUpdate = true;
+                      }
+                    }
+
+                    // 3. 메쉬 재질(Material) 교체/설정
+                    const hasVertexColors = !!mesh.geometry.attributes.color;
+                    mesh.material = new THREE.MeshStandardMaterial({
+                      vertexColors: hasVertexColors,
+                      color: hasVertexColors ? 0xffffff : 0xd3d3d3,
+                      roughness: 0.35,
+                      metalness: 0.05,
+                      side: THREE.DoubleSide
+                    });
+
+                    geometries.push(mesh.geometry.clone());
                   }
                 }
               });
 
               if (geometries.length === 1) {
                 geometry = geometries[0];
-                sanitizeGeometryColors(geometry);
-                extractOBJVertexColors(text, geometry);
               } else if (geometries.length > 1) {
                 geometry = mergeOBJGeometries(geometries);
-                extractOBJVertexColors(text, geometry);
               } else {
                 throw new Error('OBJ 파일에서 3D 메쉬를 찾을 수 없습니다.');
               }
