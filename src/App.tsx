@@ -69,19 +69,28 @@ export default function App() {
     return null;
   };
 
+  // Direct Link Protection / Access Password Gate states
+  // 직접 게시물 링크(URL 주소)로 접속한 경우 비밀번호 입력 없이 즉시 승인
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
+    if (sessionStorage.getItem('dental_access_auth') === 'true') return true;
+    const directTargetId = extractCaseIdFromUrl();
+    if (directTargetId) {
+      sessionStorage.setItem('dental_access_auth', 'true');
+      return true;
+    }
+    return false;
+  });
+
   // Check URL immediately on initial load
   useEffect(() => {
     const targetId = extractCaseIdFromUrl();
     if (targetId) {
       setActiveCaseId(targetId);
       setCurrentView('detail');
+      setIsAuthorized(true);
+      sessionStorage.setItem('dental_access_auth', 'true');
     }
   }, []);
-
-  // Direct Link Protection / Access Password Gate states
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(() => {
-    return sessionStorage.getItem('dental_access_auth') === 'true';
-  });
   const [inputPassword, setInputPassword] = useState('');
   const [passError, setPassError] = useState('');
   const [customPassword, setCustomPassword] = useState<string>('');
@@ -211,9 +220,11 @@ export default function App() {
       const data = await apiFetchCases();
       setCases(data);
       setError(null);
+      setSupabaseStatus(prev => ({ ...prev, isSupabaseActive: true }));
     } catch (err: any) {
       console.error(err);
       setError(err.message || '데이터베이스 연결 오류가 발생했습니다.');
+      setSupabaseStatus(prev => ({ ...prev, isSupabaseActive: false }));
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -233,6 +244,8 @@ export default function App() {
         const id = decodeURIComponent(hash.replace('#case-', ''));
         setActiveCaseId(id);
         setCurrentView('detail');
+        setIsAuthorized(true);
+        sessionStorage.setItem('dental_access_auth', 'true');
       } else if (hash === '#register' || search.includes('view=register')) {
         setCurrentView('register');
       } else if (hash === '' || hash === '#') {
@@ -240,6 +253,8 @@ export default function App() {
         if (idParam) {
           setActiveCaseId(idParam);
           setCurrentView('detail');
+          setIsAuthorized(true);
+          sessionStorage.setItem('dental_access_auth', 'true');
         } else {
           setCurrentView('dashboard');
           setActiveCaseId(null);
@@ -462,12 +477,12 @@ export default function App() {
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border shadow-3xs ${
                 supabaseStatus.isSupabaseActive
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-200'
               }`}
-              title={supabaseStatus.isSupabaseActive ? 'Supabase 클라우드 DB 및 스토리지 연동 완료' : 'Supabase 연결 중...'}
+              title={supabaseStatus.isSupabaseActive ? '클라우드 DB 연동 완료' : '데이터베이스 연동 실패'}
             >
-              <Database className="w-3.5 h-3.5" />
-              <span>{supabaseStatus.isSupabaseActive ? 'Supabase 연동 완료' : 'Supabase 연결 중...'}</span>
+              <Database className={`w-3.5 h-3.5 ${supabaseStatus.isSupabaseActive ? 'text-emerald-600' : 'text-rose-600'}`} />
+              <span>{supabaseStatus.isSupabaseActive ? 'DB 연동 완료' : 'DB 연동 안 됨'}</span>
             </div>
 
             {/* Auto Delete Policy Indicator */}
@@ -481,10 +496,10 @@ export default function App() {
               type="button"
               onClick={handleOpenPasswordModal}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-900 text-white hover:bg-slate-800 transition-all cursor-pointer shadow-3xs active:scale-95"
-              title="외부 무단 접속 제한 및 직링크 보호 비밀번호 설정"
+              title="외부 무단 접속 제한 및 비밀번호 보안 설정"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
-              <span>직링크 보안 설정</span>
+              <span>보안설정</span>
             </button>
 
             {/* Manual Sync Button */}
@@ -687,7 +702,7 @@ export default function App() {
             <div className="flex justify-between items-center pb-3 border-b border-slate-100 shrink-0">
               <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
-                <span>외부 접속 제한 & 직링크 보안 설정</span>
+                <span>보안설정</span>
               </h3>
               <button
                 type="button"
@@ -704,16 +719,7 @@ export default function App() {
                   🔒 보안 정책 안내
                 </p>
                 <p className="text-[11px] text-blue-800">
-                  외부 무단 접속을 차단하기 위해, 직접 페이지 링크 주소(URL)를 통해서가 아니면 본 보안 접근 키 또는 접속 비밀번호가 필요합니다.
-                </p>
-              </div>
-
-              <div className="p-3 bg-emerald-50 border border-emerald-200/70 rounded-2xl">
-                <p className="font-bold text-emerald-900 text-xs mb-1">
-                  🌐 공유 비밀번호 (PC · 모바일 동기화)
-                </p>
-                <p className="text-[11px] text-emerald-800">
-                  비밀번호는 Supabase 데이터베이스에 저장되어 PC, 모바일, 태블릿 등 모든 기기에서 동일하게 적용됩니다. 한 곳에서 변경하면 모든 접속자에게 즉시 반영됩니다.
+                  외부 무단 접속을 차단하기 위해, 직접 페이지 링크 주소(URL)를 통해서 접속하는게 아니면 본 보안 접근 키 또는 접속 비밀번호가 필요합니다.
                 </p>
               </div>
 
