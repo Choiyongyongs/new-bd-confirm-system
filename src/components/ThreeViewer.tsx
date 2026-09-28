@@ -207,10 +207,48 @@ function sanitizeGeometryColors(geometry: THREE.BufferGeometry): boolean {
   }
 }
 
-// Fallback vertex color extractor for dental OBJ files with 'v x y z r g b' syntax (e.g. exocad)
+/**
+ * 1. exocad 커스텀 메타데이터 전처리 (UI 프리징/먹통 해결)
+ * - exocad 생성 OBJ 파일의 정점 사이에 포함된 'g A ID1 NID0 LT0013 LL18000000' 등 복잡한 커스텀 파라미터 라인 처리
+ * - OBJ 로더가 파싱을 시작하기 전, 텍스트 데이터에서 'g '로 시작하는 라인 중 공백 뒤에 복수 파라미터가 포함된 경우
+ *   단순 그룹명('g Group')으로 치환하여 무분별한 그룹 분할 및 브라우저 멈춤을 방지
+ */
+function preprocessExocadOBJText(text: string): string {
+  return text.replace(/^[ \t]*g\s+[^\r\n]+/gm, (line) => {
+    const trimmed = line.trim();
+    const parts = trimmed.split(/\s+/);
+    if (parts.length > 2) {
+      return 'g Group';
+    }
+    return line;
+  });
+}
+
+/**
+ * 2. 정점 색상(Vertex Color) 파싱 및 렌더링 지원 (색상 표현)
+ * - exocad 스캔 파일의 정점 라인은 'v x y z r g b' 형태로 4번째 이후에 RGB 값(0~255 정수 또는 0.0~1.0 부동소수점)이 포함되어 있음
+ * - 4~6번째 토큰(R, G, B)을 감지하여 0.0 ~ 1.0 범위로 정규화한 뒤 BufferGeometry의 'color' 속성(THREE.Float32BufferAttribute)에 주입
+ */
 function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry): void {
   try {
+    // 1) 이미 유효한 정점 색상이 주입되어 있는 경우 정규화 검사 후 종료
     if (geometry.attributes.color && geometry.attributes.color.count > 0) {
+      const colors = geometry.attributes.color;
+      const array = colors.array;
+      let hasOverOne = false;
+      const checkLen = Math.min(array.length, 3000);
+      for (let i = 0; i < checkLen; i++) {
+        if (array[i] > 1.0) {
+          hasOverOne = true;
+          break;
+        }
+      }
+      if (hasOverOne) {
+        for (let i = 0; i < array.length; i++) {
+          array[i] = Math.min(Math.max(array[i] / 255.0, 0.0), 1.0);
+        }
+        colors.needsUpdate = true;
+      }
       sanitizeGeometryColors(geometry);
       return;
     }
@@ -219,7 +257,7 @@ function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry)
     const rawVertexColors: [number, number, number][] = [];
     let hasVertexColors = false;
 
-    // 1. 'v x y z r g b' 라인 파싱 (0~255 정수 또는 0.0~1.0 부동소수점)
+    // 2) 'v x y z r g b' 라인 파싱 (토큰 4~6 감지 및 0.0~1.0 정규화)
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (line.startsWith('v ')) {
@@ -230,7 +268,7 @@ function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry)
           let b = parseFloat(parts[6]);
 
           if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
-            // 0~255 범위인 경우 255로 나누어 0.0~1.0으로 정규화
+            // 0~255 정수 범위인 경우 255.0으로 나누어 0.0~1.0 정규화
             if (r > 1.0 || g > 1.0 || b > 1.0) {
               r /= 255.0;
               g /= 255.0;
@@ -253,7 +291,7 @@ function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry)
 
     if (!hasVertexColors || rawVertexColors.length === 0) return;
 
-    // 2. Three.js OBJLoader는 non-indexed 버퍼(face당 3정점 전개)로 생성하므로 face 인덱스로 정점 색상 매핑
+    // 3) Three.js OBJLoader는 non-indexed 버퍼(face당 3정점 전개)로 생성하므로 face 인덱스로 정점 색상 전개
     const faceColors: number[] = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -284,14 +322,15 @@ function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry)
     const posCount = geometry.attributes.position ? geometry.attributes.position.count : 0;
     if (posCount === 0) return;
 
+    // Non-indexed 지오메트리 정점 수와 faceColors 일치 시 주입
     if (faceColors.length > 0 && faceColors.length / 3 === posCount) {
       const colorArray = new Float32Array(faceColors);
-      geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colorArray, 3));
       geometry.attributes.color.needsUpdate = true;
       return;
     }
 
-    // geometry가 indexed이거나 정점 수와 1:1 매칭되는 경우
+    // Indexed 또는 정점 수가 1:1 매칭되는 경우
     if (rawVertexColors.length === posCount) {
       const colorArray = new Float32Array(posCount * 3);
       for (let i = 0; i < posCount; i++) {
@@ -299,18 +338,18 @@ function extractOBJVertexColors(objText: string, geometry: THREE.BufferGeometry)
         colorArray[i * 3 + 1] = rawVertexColors[i][1];
         colorArray[i * 3 + 2] = rawVertexColors[i][2];
       }
-      geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colorArray, 3));
       geometry.attributes.color.needsUpdate = true;
       return;
     }
 
-    // 부분 메쉬 또는 인덱스 불일치 대비 안전장치 버퍼 주입
+    // 부분 매칭 안전장치 주입
     if (faceColors.length > 0) {
       const colorArray = new Float32Array(posCount * 3);
       for (let i = 0; i < posCount * 3; i++) {
         colorArray[i] = i < faceColors.length ? faceColors[i] : 1.0;
       }
-      geometry.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colorArray, 3));
       geometry.attributes.color.needsUpdate = true;
     }
   } catch (err) {
@@ -1152,27 +1191,10 @@ export default function ThreeViewer({
 
       if (grp.children.length === 0) return;
 
-      const box = new THREE.Box3();
-      let hasVisibleMesh = false;
-
-      grp.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh && child.visible) {
-          const mesh = child as THREE.Mesh;
-          if (mesh.geometry) {
-            if (!mesh.geometry.boundingBox) {
-              mesh.geometry.computeBoundingBox();
-            }
-            if (mesh.geometry.boundingBox) {
-              const meshBox = mesh.geometry.boundingBox.clone();
-              meshBox.applyMatrix4(mesh.matrixWorld);
-              box.union(meshBox);
-              hasVisibleMesh = true;
-            }
-          }
-        }
-      });
-
-      if (!hasVisibleMesh || box.isEmpty()) return;
+      // 3. 모델 Bounding Box 기반 카메라 자동 정렬 (Fit to Viewport)
+      // THREE.Box3().setFromObject(loadedObject)를 사용하여 모델의 바운딩 박스 중심(Center)과 크기(Size) 계산
+      const box = new THREE.Box3().setFromObject(grp);
+      if (box.isEmpty()) return;
 
       const center = new THREE.Vector3();
       box.getCenter(center);
@@ -1187,8 +1209,9 @@ export default function ThreeViewer({
 
       hasAutoFittedRef.current = true;
 
+      // 카메라 위치를 모델 전체가 시야각(FOV) 내에 들어오도록 자동 이동
       const fov = cam.fov * (Math.PI / 180);
-      let cameraDistance = Math.abs(maxDim / (2 * Math.tan(fov / 2))) * 1.25;
+      let cameraDistance = Math.abs(maxDim / (2 * Math.tan(fov / 2))) * 1.35;
       if (!isFinite(cameraDistance) || cameraDistance < 5) cameraDistance = 5;
 
       cam.near = Math.max(0.01, cameraDistance / 100);
@@ -1200,9 +1223,14 @@ export default function ThreeViewer({
         transitionRef.current = null;
       }
 
-      ctrl.target.copy(center);
-      cam.position.set(center.x, center.y + maxDim * 0.35, center.z + cameraDistance);
+      // 카메라 위치 설정 및 center 주시
+      cam.position.set(center.x, center.y + maxDim * 0.25, center.z + cameraDistance);
       cam.lookAt(center);
+
+      // controls.target을 모델 중심 좌표로 갱신
+      if (ctrl.target) {
+        ctrl.target.copy(center);
+      }
 
       // TrackballControls 내부 드래그 상태 및 잔여 회전 관성 속도 리셋 (회전 끊김 방지)
       try {
@@ -1332,7 +1360,11 @@ export default function ThreeViewer({
       targetGroup.add(mesh);
       targetGroup.updateMatrixWorld(true);
 
-      if (!hasAutoFittedRef.current) {
+      // 스캔 모델과 어벗 모델의 좌표계 원점이 달라 화면 밖으로 벗어나는 문제 방지
+      // 모델 추가 시 전체 바운딩 박스를 기반으로 카메라 뷰포트 자동 맞춤
+      if (!savedCameraState) {
+        fitCameraToModelGroup();
+      } else if (!hasAutoFittedRef.current) {
         fitCameraToModelGroup();
         hasAutoFittedRef.current = true;
       }
@@ -1474,7 +1506,10 @@ export default function ThreeViewer({
               sanitizeGeometryColors(geometry);
             } else if (ext === 'obj') {
               const loader = new OBJLoader();
-              const text = new TextDecoder('utf-8').decode(arrayBuffer);
+              const rawText = new TextDecoder('utf-8').decode(arrayBuffer);
+              
+              // 1. exocad 커스텀 메타데이터 전처리 (UI 프리징/먹통 해결)
+              const text = preprocessExocadOBJText(rawText);
               const objGroup = loader.parse(text);
 
               const geometries: THREE.BufferGeometry[] = [];
@@ -1482,33 +1517,11 @@ export default function ThreeViewer({
                 if (child instanceof THREE.Mesh) {
                   const mesh = child;
                   if (mesh.geometry) {
-                    // 1. 기본 OBJLoader의 정점 색상 누락 대비 안전장치 (Fallback)
-                    if (!mesh.geometry.attributes.color || mesh.geometry.attributes.color.count === 0) {
-                      extractOBJVertexColors(text, mesh.geometry);
-                    }
+                    // 2. 정점 색상(Vertex Color) 파싱 및 BufferGeometry color 속성 주입
+                    extractOBJVertexColors(text, mesh.geometry);
 
-                    // 2. 색상 버퍼가 존재한다면 1.0 초과(0~255 정수) 검사 및 255로 나누어 0.0~1.0 정규화
-                    if (mesh.geometry.attributes.color) {
-                      const colors = mesh.geometry.attributes.color;
-                      const array = colors.array;
-                      let hasOverOne = false;
-                      const checkLen = Math.min(array.length, 3000);
-                      for (let i = 0; i < checkLen; i++) {
-                        if (array[i] > 1.0) {
-                          hasOverOne = true;
-                          break;
-                        }
-                      }
-                      if (hasOverOne) {
-                        for (let i = 0; i < array.length; i++) {
-                          array[i] = Math.min(Math.max(array[i] / 255.0, 0.0), 1.0);
-                        }
-                        colors.needsUpdate = true;
-                      }
-                    }
-
-                    // 3. 메쉬 재질(Material) 교체/설정
-                    const hasVertexColors = !!mesh.geometry.attributes.color;
+                    // 3. 지오메트리에 color 속성이 존재할 경우 재질(Material)에 vertexColors: true 적용
+                    const hasVertexColors = Boolean(mesh.geometry.attributes.color && mesh.geometry.attributes.color.count > 0);
                     mesh.material = new THREE.MeshStandardMaterial({
                       vertexColors: hasVertexColors,
                       color: hasVertexColors ? 0xffffff : 0xd3d3d3,
