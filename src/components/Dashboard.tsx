@@ -742,12 +742,12 @@ export default function Dashboard({ cases, onSelectCase, onAddCaseClick, onDelet
               <div
                 key={c.id}
                 onClick={() => onSelectCase(c.id)}
-                className="bg-white border border-slate-200/60 rounded-2xl p-4 hover:border-blue-500/50 glow-on-hover transition-all flex flex-col justify-between h-44 shadow-2xs group cursor-pointer relative"
+                className="bg-white border border-slate-200/60 rounded-2xl p-4.5 hover:border-blue-500/50 glow-on-hover transition-all flex flex-col justify-between h-40 shadow-2xs group cursor-pointer relative"
                 id={`case-card-${c.id}`}
               >
                 {/* Top status & date */}
                 <div>
-                  <div className="flex justify-between items-start gap-2 mb-2.5">
+                  <div className="flex justify-between items-start gap-2 mb-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {/* 요청 구분 뱃지 (상태란 왼쪽) */}
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${
@@ -775,7 +775,7 @@ export default function Dashboard({ cases, onSelectCase, onAddCaseClick, onDelet
                     </div>
                     
                     <div className="flex items-center gap-1">
-                      <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
+                      <span className="text-[11px] text-slate-400 font-mono flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {new Date(c.createdAt).toLocaleDateString('ko-KR', {
                           month: 'short',
@@ -812,27 +812,27 @@ export default function Dashboard({ cases, onSelectCase, onAddCaseClick, onDelet
                   </div>
 
                   {/* Chart and Patient Info */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md text-[11px] font-bold font-rounded-bold border border-blue-100">
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-bold font-rounded-bold border border-blue-100">
                       차트번호 {c.chartNumber}
                     </div>
-                    <h4 className="text-sm font-bold text-slate-800 font-rounded-bold">{c.patientName} 환자</h4>
+                    <h4 className="text-base font-extrabold text-slate-800 font-rounded-bold tracking-tight">{c.patientName} 환자</h4>
                   </div>
                 </div>
 
                 {/* Footer clinicians information & action */}
-                <div className="border-t border-slate-100 pt-2.5 mt-auto flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 font-rounded">
+                <div className="border-t border-slate-100 pt-3 mt-auto flex items-center justify-between">
+                  <div className="flex items-center gap-2.5 flex-wrap text-xs text-slate-600 font-rounded">
                     <span>
-                      의료진: <strong className="text-blue-700 font-bold font-rounded-bold">{c.dentistName}</strong>
+                      원장님: <strong className="text-blue-700 font-bold font-rounded-bold text-[13px]">{c.dentistName}</strong>
                     </span>
                     <span className="text-slate-300">|</span>
                     <span>
-                      기공사: <strong className="text-slate-800 font-bold font-rounded-bold">{c.technicianName}</strong>
+                      기공사: <strong className="text-slate-800 font-bold font-rounded-bold text-[13px]">{c.technicianName}</strong>
                     </span>
                   </div>
 
-                  <div className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 group-hover:translate-x-1 transition-transform">
+                  <div className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 group-hover:translate-x-1 transition-transform">
                     {isConfirmed ? '상세 내역' : '컨펌 진행'}
                     <ChevronRight className="w-3.5 h-3.5" />
                   </div>
