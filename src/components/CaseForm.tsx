@@ -103,7 +103,6 @@ export default function CaseForm({ onBack, onSave, initialCase, defaultDentist, 
     if (defaultTechnician && defaultTechnician !== '전체') return defaultTechnician;
     return '최용희';
   });
-  const [summary, setSummary] = useState(initialCase ? initialCase.summary : '');
   const [description, setDescription] = useState(initialCase ? initialCase.description : '');
 
   // 3D Model State
@@ -545,7 +544,7 @@ export default function CaseForm({ onBack, onSave, initialCase, defaultDentist, 
       fd.append('patientName', patientName.trim());
       fd.append('dentistName', dentistName);
       fd.append('technicianName', technicianName.trim());
-      fd.append('summary', summary.trim() || `${patientName} 환자 보철 디자인 컨펌 요청`);
+      fd.append('summary', (initialCase?.summary || `${patientName.trim()} 환자 보철 디자인 컨펌 요청`));
       fd.append('description', description.trim());
       fd.append('pins', JSON.stringify(pins));
       if (cameraState) {
@@ -903,21 +902,6 @@ export default function CaseForm({ onBack, onSave, initialCase, defaultDentist, 
 
       {/* [하단 영역]: 전체적인 컨펌 요청 내용 */}
       <div className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-2xs flex flex-col gap-4">
-        {/* Quick Summary Input */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] font-bold text-slate-400 flex items-center gap-1 uppercase tracking-wider">
-            <FileText className="w-3.5 h-3.5 text-slate-400" />
-            전체 요약 <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            required
-            placeholder="예: 전치부 #11, #21 지르코니아 크라운 디자인 검토 요청드립니다."
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            className="text-xs px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-slate-50 focus:bg-white"
-          />
-        </div>
 
         {/* Long Description Textarea */}
         <div className="flex flex-col gap-1.5">

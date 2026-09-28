@@ -623,14 +623,16 @@ export default function CaseDetail({ caseId, onBack, onConfirm, onDelete, onEdit
             </span>
           </div>
 
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              전체 요약
-            </span>
-            <div className="bg-white rounded-xl p-3 border border-slate-200/80 text-xs font-bold text-slate-800 shadow-3xs">
-              {dentalCase.summary}
+          {dentalCase.summary && !dentalCase.summary.includes('보철 디자인 컨펌 요청') && (
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                전체 요약
+              </span>
+              <div className="bg-white rounded-xl p-3 border border-slate-200/80 text-xs font-bold text-slate-800 shadow-3xs">
+                {dentalCase.summary}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex-1 flex flex-col">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">

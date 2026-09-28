@@ -307,7 +307,8 @@ export default function Dashboard({ cases, onSelectCase, onAddCaseClick, onDelet
       c.chartNumber.toLowerCase().includes(term) ||
       c.technicianName.toLowerCase().includes(term) ||
       c.dentistName.toLowerCase().includes(term) ||
-      c.summary.toLowerCase().includes(term);
+      (c.description && c.description.toLowerCase().includes(term)) ||
+      (c.summary && c.summary.toLowerCase().includes(term));
 
     return matchesDentist && matchesTechnician && matchesStatus && matchesSearch;
   });
@@ -811,17 +812,12 @@ export default function Dashboard({ cases, onSelectCase, onAddCaseClick, onDelet
                   </div>
 
                   {/* Chart and Patient Info */}
-                  <div className="flex items-center gap-2 mb-1.5">
+                  <div className="flex items-center gap-2 mb-2">
                     <div className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md text-[11px] font-bold font-rounded-bold border border-blue-100">
                       차트번호 {c.chartNumber}
                     </div>
                     <h4 className="text-sm font-bold text-slate-800 font-rounded-bold">{c.patientName} 환자</h4>
                   </div>
-
-                  {/* Summary of request */}
-                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-2 pr-2 font-rounded">
-                    {c.summary}
-                  </p>
                 </div>
 
                 {/* Footer clinicians information & action */}
